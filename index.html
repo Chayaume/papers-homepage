@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>PubMed 今日のレビュー論文</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', sans-serif;
+      padding: 30px;
+      background-color: #f0f2f5;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      background: #fff;
+      margin-bottom: 25px;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .abstract {
+      margin-top: 10px;
+      line-height: 1.5;
+      color: #444;
+    }
+    .buttons {
+      margin-top: 10px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 8px 14px;
+      margin-right: 10px;
+      font-size: 0.9rem;
+      color: white;
+      background-color: #4CAF50;
+      border: none;
+      border-radius: 6px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .btn:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>📚 今日のレビュー論文（PubMed）</h1>
+  <ul id="papers">
+    <li>読み込み中...</li>
+  </ul>
+
+  <script>
+    const today = new Date().toISOString().split('T')[0];
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=review[pt]+AND+${today}[PDAT]&retmode=json&retmax=5`;
+
+    fetch(searchUrl)
+      .then(res => res.json())
+      .then(data => {
+        const ids = data.esearchresult.idlist;
+        if (ids.length === 0) {
+          document.getElementById('papers').innerHTML = '<li>今日はレビュー論文が見つかりませんでした。</li>';
+          return;
+        }
+
+        const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${ids.join(',')}&retmode=xml`;
+
+        return fetch(fetchUrl).then(res => res.text());
+      })
+      .then(xmlText => {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(xmlText, "text/xml");
+        const articles = xml.getElementsByTagName("PubmedArticle");
+
+        const list = document.getElementById('papers');
+        list.innerHTML = '';
+
+        for (let article of articles) {
+          const title = article.getElementsByTagName("ArticleTitle")[0]?.textContent || "タイトルなし";
+          const abstract = article.getElementsByTagName("AbstractText")[0]?.textContent || "アブストラクトなし";
+          const pmid = article.getElementsByTagName("PMID")[0].textContent;
+
+          const googleTranslateUrl = `https://translate.google.com/?sl=en&tl=ja&text=${encodeURIComponent(abstract)}&op=translate`;
+
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <strong><a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank">${title}</a></strong>
+            <p class="abstract">${abstract}</p>
+            <div class="buttons">
+              <a class="btn" href="${googleTranslateUrl}" target="_blank">翻訳する</a>
+              <a class="btn" href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank">PubMedで開く</a>
+            </div>
+          `;
+          list.appendChild(li);
+        }
+      })
+      .catch(err => {
+        document.getElementById('papers').innerHTML = '<li>データ取得中にエラーが発生しました。</li>';
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
